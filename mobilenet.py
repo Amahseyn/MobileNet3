@@ -1,3 +1,4 @@
+
 import os
 import cv2
 import collections
@@ -672,9 +673,13 @@ class CustomModel(Model):
             model_file_path = self.save_directory + '/model_best_{}.h5'.format(np.round(
                                                                               np.array(save_loss).astype(np.float32),
                                                                               5))
-            self.save(new_file_path)
-            self.save
+            weight_file_path = self.save_directory + '/weight_best_{}.h5'.format(np.round(
+                                                                              np.array(save_loss).astype(np.float32),
+                                                                              5))
+            self.save(model_file_path)
+            self.save_weights()
             print('Model_saved:', model_file_path)
+            print('Wight_saved:', weight_file_path)
             save_best_loss = save_loss
         else:
             count_without_improvement += 1
