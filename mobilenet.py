@@ -673,13 +673,10 @@ class CustomModel(Model):
             model_file_path = self.save_directory + '/model_best_{}.h5'.format(np.round(
                                                                               np.array(save_loss).astype(np.float32),
                                                                               5))
-            weight_file_path = self.save_directory + '/weight_best_{}.h5'.format(np.round(
-                                                                              np.array(save_loss).astype(np.float32),
-                                                                              5))
+
             self.save(model_file_path)
-            self.save_weights()
             print('Model_saved:', model_file_path)
-            print('Wight_saved:', weight_file_path)
+
             save_best_loss = save_loss
         else:
             count_without_improvement += 1
@@ -697,11 +694,9 @@ class CustomModel(Model):
             prediction = self.model.predict(input)
             return prediction
 
-    def save_save_weights(self, path):
-        self.model.save_weights(path)
         # pass
-    def save_save(self, path):
-        self.model.save(path)
+    def save(self, path):
+        self.model.save_weights(path)
         # pass
 
     def load(self, path):
@@ -1304,11 +1299,11 @@ n_val = len(val_dataset_hq)
 
 loss_name = 'fb_combined'
 optimizer = 'Adam'
-lr = 0.00005
+lr = 0.0005
 batch_size = train_batch_size
 max_epoches = 1000
 save_directory = '/content/drive/MyDrive/MobileNet'
-reduce_factor = 0.75
+reduce_factor = 0.995
 epoches_limit = 5
 early_stoping = 100
 metrics = [FbSegm(channel_axis=-1)]
