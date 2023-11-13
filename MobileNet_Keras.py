@@ -25,15 +25,14 @@ def load_and_preprocess_data(data_dir):
         mask_path = os.path.join(data_dir, 'masks', image_filename)
         
         # Read and preprocess image
-        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        image = cv2.imread(image_path)
         image = cv2.resize(image, (input_shape[0], input_shape[1]))
-        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)  # Convert to RGB
         image = image / 255.0
         
         # Read and preprocess mask
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
         mask = (mask >= 10).astype(np.float32)  # Ensure the correct data type
-        mask = cv2.resize(mask, (12, 12))  # Resize to match the predicted shape
+        mask = cv2.resize(mask, (input_shape[0], input_shape[1]))
         mask = mask / 255.0  # Normalize to [0, 1]
         mask = np.expand_dims(mask, axis=-1)  # Add channel dimension
 
@@ -46,11 +45,11 @@ def visualize_data(images, masks, num_samples=5):
     for i in range(num_samples):
         plt.figure(figsize=(10, 5))
         plt.subplot(1, 2, 1)
-        plt.imshow(images[i], cmap='gray')
+        plt.imshow(images[i])
         plt.title('Input Image')
 
         plt.subplot(1, 2, 2)
-        plt.imshow(masks[i], cmap='viridis')
+        plt.imshow(masks[i][:, :, 0], cmap='viridis')
         plt.title('Mask')
         plt.show()
 
@@ -64,10 +63,10 @@ val_images, val_masks = load_and_preprocess_data(val_data_dir)
 test_images, test_masks = load_and_preprocess_data(test_data_dir)
 
 # Visualize some training data
-visualize_data(train_images, train_masks)
+# visualize_data(train_images, train_masks)
 
-# Base MobileNetV2 model
-base_model = tf.keras.applications.MobileNetV2(input_shape=input_shape, include_top=False)
+# Base MobileNetV3 model
+base_model = tf.keras.applications.MobileNetV3Small(input_shape=input_shape, include_top=False, weights='imagenet')
 
 # Freeze base model layers
 for layer in base_model.layers:
@@ -75,14 +74,15 @@ for layer in base_model.layers:
 
 # Build the segmentation model
 x = base_model.output
-x = layers.Conv2D(256, (3, 3), activation='relu')(x)
-x = layers.Conv2D(128, (3, 3), activation='relu')(x)
-x = layers.UpSampling2D()(x)
-x = layers.Conv2D(64, (3, 3), activation='relu')(x)
-x = layers.UpSampling2D()(x)
-x = layers.Conv2D(32, (3, 3), activation='relu')(x)
-x = layers.UpSampling2D()(x)
-output = layers.Conv2D(1, (1, 1), activation='sigmoid')(x)  # Change the number of filters to 1
+x = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(x)
+x = layers.UpSampling2D(size=(4, 4))(x)  # Upsample to match 224x224
+x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
+x = layers.UpSampling2D(size=(2, 2))(x)
+x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(x)
+x = layers.UpSampling2D(size=(2, 2))(x)
+x = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(x)
+x = layers.UpSampling2D(size=(2, 2))(x)
+output = layers.Conv2D(1, (1, 1), activation='sigmoid')(x)
 
 model = Model(inputs=base_model.input, outputs=output)
 
@@ -93,12 +93,15 @@ model.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy', metrics=['acc
 model.summary()
 
 # Train the model
-epochs = 10
+epochs = 1000
 history = model.fit(
     train_images, train_masks,
     validation_data=(val_images, val_masks),
     epochs=epochs
 )
+
+
+model.save("1.h5")
 
 # Plot training history
 plt.plot(history.history['loss'], label='Training Loss')
@@ -119,7 +122,7 @@ predictions = model.predict(test_images)
 for i in range(5):
     plt.figure(figsize=(10, 5))
     plt.subplot(1, 3, 1)
-    plt.imshow(test_images[i], cmap='gray')
+    plt.imshow(test_images[i])
     plt.title('Input Image')
     
     plt.subplot(1, 3, 2)
@@ -127,6 +130,6 @@ for i in range(5):
     plt.title('Ground Truth Mask')
 
     plt.subplot(1, 3, 3)
-    plt.imshow(predictions[i, :, :, 0] > 0.5, cmap='viridis')  # Apply threshold
+    plt.imshow(predictions[i] > 0.5, cmap='viridis')  # Apply threshold
     plt.title('Predicted Mask')
     plt.show()
