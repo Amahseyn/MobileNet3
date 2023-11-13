@@ -8,7 +8,7 @@ import numpy as np
 import os
 
 # Define constants
-input_shape = (224, 224, 1)  # Grayscale images have one channel
+input_shape = (224, 224, 3)  # Change the number of channels to 3 for RGB
 num_classes = 1  # Binary segmentation
 
 # Data paths
@@ -27,13 +27,15 @@ def load_and_preprocess_data(data_dir):
         # Read and preprocess image
         image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         image = cv2.resize(image, (input_shape[0], input_shape[1]))
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)  # Convert to RGB
         image = image / 255.0
         
         # Read and preprocess mask
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
         mask = (mask >= 10).astype(np.float32)  # Ensure the correct data type
-        mask = cv2.resize(mask, (input_shape[0], input_shape[1]))
+        mask = cv2.resize(mask, (12, 12))  # Resize to match the predicted shape
         mask = mask / 255.0  # Normalize to [0, 1]
+        mask = np.expand_dims(mask, axis=-1)  # Add channel dimension
 
         images.append(image)
         masks.append(mask)
@@ -48,7 +50,7 @@ def visualize_data(images, masks, num_samples=5):
         plt.title('Input Image')
 
         plt.subplot(1, 2, 2)
-        plt.imshow(masks[i][:, :, 0], cmap='viridis')
+        plt.imshow(masks[i], cmap='viridis')
         plt.title('Mask')
         plt.show()
 
@@ -80,7 +82,7 @@ x = layers.Conv2D(64, (3, 3), activation='relu')(x)
 x = layers.UpSampling2D()(x)
 x = layers.Conv2D(32, (3, 3), activation='relu')(x)
 x = layers.UpSampling2D()(x)
-output = layers.Conv2D(num_classes, (1, 1), activation='sigmoid')(x)
+output = layers.Conv2D(1, (1, 1), activation='sigmoid')(x)  # Change the number of filters to 1
 
 model = Model(inputs=base_model.input, outputs=output)
 
