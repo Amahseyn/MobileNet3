@@ -534,7 +534,7 @@ class FbSegm():
         if not self.count:
             raise Exception('Must be at least one example for computation')
         else:
-            return (self.se/self.count).numpy()
+            return (self.se/self.count)
 
 """train"""
 
@@ -1296,14 +1296,15 @@ old_model_path = None  # Or path to the previous saved model
 # Train params
 n_train = len(train_dataset)
 n_val = len(val_dataset_hq)
+#lr =.0005 reduce_factor = .995
 
 loss_name = 'fb_combined'
 optimizer = 'Adam'
-lr = 0.0005
+lr = 0.01
 batch_size = train_batch_size
 max_epoches = 1000
 save_directory = '/content/drive/MyDrive/MobileNet'
-reduce_factor = 0.995
+reduce_factor = 0.9
 epoches_limit = 5
 early_stoping = 100
 metrics = [FbSegm(channel_axis=-1)]
