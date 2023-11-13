@@ -2,76 +2,67 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
-
-# Explicitly set the GPU to use (optional)
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-    try:
-        # Currently, memory growth needs to be the same across GPUs
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-    except RuntimeError as e:
-        # Memory growth must be set before GPUs have been initialized
-        print(e)
+import os
 
 # Define constants
 input_shape = (224, 224, 1)  # Grayscale images have one channel
 num_classes = 1  # Binary segmentation
 
 # Data paths
-train_data_dir = 'path/to/train'
-val_data_dir = 'path/to/validation'
-test_data_dir = 'path/to/test'
+train_data_dir = '/content/drive/MyDrive/MobileNet/DataSet/train'
+val_data_dir = '/content/drive/MyDrive/MobileNet/DataSet/val'
+test_data_dir = '/content/drive/MyDrive/MobileNet/DataSet/test'
 
-# Data generators with augmentation for training
-train_datagen = ImageDataGenerator(
-    rescale=1./255,
-    shear_range=0.2,
-    zoom_range=0.2,
-    horizontal_flip=True
-)
+def load_and_preprocess_data(data_dir):
+    images = []
+    masks = []
 
-val_datagen = ImageDataGenerator(rescale=1./255)
-test_datagen = ImageDataGenerator(rescale=1./255)
+    for image_filename in os.listdir(os.path.join(data_dir, 'images')):
+        image_path = os.path.join(data_dir, 'images', image_filename)
+        mask_path = os.path.join(data_dir, 'masks', image_filename)
+        
+        # Read and preprocess image
+        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        image = cv2.resize(image, (input_shape[0], input_shape[1]))
+        image = image / 255.0
+        
+        # Read and preprocess mask
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+        mask = (mask >= 10).astype(np.float32)  # Ensure the correct data type
+        mask = cv2.resize(mask, (input_shape[0], input_shape[1]))
+        mask = mask / 255.0  # Normalize to [0, 1]
 
-batch_size = 32
+        images.append(image)
+        masks.append(mask)
 
-def preprocess_mask(mask):
-    # Apply thresholding (adjust threshold value as needed)
-    _, mask = cv2.threshold(mask, 128, 255, cv2.THRESH_BINARY)
+    return np.array(images), np.array(masks)
 
-    # Apply noise reduction (adjust kernel size as needed)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel=np.ones((3, 3), np.uint8))
-
-    return mask / 255.0  # Normalize to [0, 1]
-
-def preprocess_input(image):
-    # No preprocessing for images, just rescale
-    return image / 255.0
-
-def visualize_data(generator, num_samples=5):
+def visualize_data(images, masks, num_samples=5):
     for i in range(num_samples):
-        sample = next(generator)
-        image, mask = sample[0][0], sample[1][0]
-
         plt.figure(figsize=(10, 5))
         plt.subplot(1, 2, 1)
-        plt.imshow(image, cmap='gray')
+        plt.imshow(images[i], cmap='gray')
         plt.title('Input Image')
 
         plt.subplot(1, 2, 2)
-        plt.imshow(mask[:, :, 0], cmap='viridis')
+        plt.imshow(masks[i][:, :, 0], cmap='viridis')
         plt.title('Mask')
         plt.show()
 
+# Load and preprocess training data
+train_images, train_masks = load_and_preprocess_data(train_data_dir)
+
+# Load and preprocess validation data
+val_images, val_masks = load_and_preprocess_data(val_data_dir)
+
+# Load and preprocess test data
+test_images, test_masks = load_and_preprocess_data(test_data_dir)
+
 # Visualize some training data
-visualize_data(train_generator)
+visualize_data(train_images, train_masks)
 
 # Base MobileNetV2 model
 base_model = tf.keras.applications.MobileNetV2(input_shape=input_shape, include_top=False)
@@ -102,11 +93,9 @@ model.summary()
 # Train the model
 epochs = 10
 history = model.fit(
-    train_generator,
-    steps_per_epoch=train_generator.n // batch_size,
-    epochs=epochs,
-    validation_data=val_generator,
-    validation_steps=val_generator.n // batch_size
+    train_images, train_masks,
+    validation_data=(val_images, val_masks),
+    epochs=epochs
 )
 
 # Plot training history
@@ -118,19 +107,24 @@ plt.legend()
 plt.show()
 
 # Evaluate the model on the test set
-evaluation = model.evaluate(test_generator, steps=test_generator.n // batch_size)
+evaluation = model.evaluate(test_images, test_masks)
 print(f'Test Loss: {evaluation[0]}, Test Accuracy: {evaluation[1]}')
 
 # Make predictions on the test set
-predictions = model.predict(test_generator, steps=test_generator.n // batch_size)
+predictions = model.predict(test_images)
 
 # Visualize some predictions (optional)
 for i in range(5):
     plt.figure(figsize=(10, 5))
-    plt.subplot(1, 2, 1)
-    plt.imshow(test_generator[i][0][0], cmap='gray')
+    plt.subplot(1, 3, 1)
+    plt.imshow(test_images[i], cmap='gray')
     plt.title('Input Image')
-    plt.subplot(1, 2, 2)
-    plt.imshow(predictions[i, :, :, 0], cmap='viridis')
+    
+    plt.subplot(1, 3, 2)
+    plt.imshow(test_masks[i][:, :, 0], cmap='viridis')
+    plt.title('Ground Truth Mask')
+
+    plt.subplot(1, 3, 3)
+    plt.imshow(predictions[i, :, :, 0] > 0.5, cmap='viridis')  # Apply threshold
     plt.title('Predicted Mask')
     plt.show()
